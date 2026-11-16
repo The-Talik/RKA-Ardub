@@ -236,7 +236,10 @@ public class Item implements Bundlable, QuickSlotButton.Aimable {
 		if (Dungeon.hero != null && Dungeon.hero.isAlive()) {
 			Badges.validateItemLevelAquired( this );
 			Talent.onItemCollected( Dungeon.hero, this );
-			if (isIdentified()) Catalog.setSeen(getClass());
+            if (isIdentified()) {
+                Catalog.setSeen(getClass());
+                Statistics.itemTypesDiscovered.add(getClass());
+            }
 
 		}
 

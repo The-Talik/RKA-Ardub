@@ -1,13 +1,21 @@
 apply plugin: 'com.android.application'
 
+def releaseSigning = new Properties()
+def releaseSigningFile = rootProject.file('signing.properties')
+if (releaseSigningFile.isFile()) {
+    releaseSigningFile.withInputStream { releaseSigning.load(it) }
+}
+
 android {
     namespace 'com.zrp200.rkpd2.android'
     signingConfigs {
         release {
-            storeFile file('C:\\Users\\zrp20\\Zrp200.jks')
-            storePassword 'palkia'
-            keyAlias 'Zrp200'
-            keyPassword 'palkia'
+            if (releaseSigningFile.isFile()) {
+                storeFile rootProject.file(releaseSigning['storeFile'])
+                storePassword releaseSigning['storePassword']
+                keyAlias releaseSigning['keyAlias']
+                keyPassword releaseSigning['keyPassword']
+            }
         }
     }
     compileSdk appAndroidCompileSDK
@@ -20,8 +28,8 @@ android {
         manifestPlaceholders = [appName:appName]
         applicationId appPackageName
 
-        versionCode appVersionCode
-        versionName appVersionName
+        versionCode appVersionCode + 11
+        versionName appVersionName + '-RKA-Ardub.11'
         multiDexEnabled true
 
         //noinspection MinSdkTooLow
@@ -33,7 +41,8 @@ android {
 
     buildTypes {
         debug {
-            applicationIdSuffix ".indev"
+            // Preserve the legacy application ID so updates keep existing saves.
+            applicationIdSuffix ".talik"
             versionNameSuffix '-INDEV'
             dependencies {
                 debugImplementation project(':services:updates:debugUpdates')
@@ -41,6 +50,7 @@ android {
             }
         }
         release {
+            applicationIdSuffix ".ardub"
 
             //These lines enable R8, which is a code shrinker/optimizer/obfuscator.
             //This makes release APKs smaller and more efficient, but also makes debugging trickier
@@ -54,7 +64,7 @@ android {
                 releaseImplementation project(':services:updates:githubUpdates')
                 releaseImplementation project(':services:news:shatteredNews')
             }
-            signingConfig signingConfigs.release
+            if (releaseSigningFile.isFile()) signingConfig signingConfigs.release
         }
     }
 

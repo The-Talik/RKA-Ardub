@@ -8,14 +8,21 @@ import static com.zrp200.rkpd2.Dungeon.hero;
 public abstract class Cooldown extends FlavourBuff {
     public static <T extends Cooldown> T affectHero(Class<T> cls) {
         T buff = Buff.affect(hero, cls);
-        buff.postpone(buff.duration());
+        buff.postpone(Math.max(0, buff.duration()));
         return buff;
     }
 
     public abstract float duration();
 
+    @Override
+    public void spend(float time) {
+        super.spend(time);
+        // An instant-cast offset must not schedule an expired cooldown in the past.
+        if (cooldown() < 0) timeToNow();
+    }
+
     public float iconFadePercent() {
-        return GameMath.gate(0, visualcooldown() / duration(), 1);
+        return duration() <= 0 ? 0 : GameMath.gate(0, visualcooldown() / duration(), 1);
     }
 
     public String toString() {

@@ -1128,7 +1128,7 @@ public class Dungeon {
 
 		if (chars) {
 			for (Char c : Actor.chars()) {
-				if (vis[c.pos]) {
+				if (vis[c.pos] && !(ch == hero && hero.canPassThroughAlly(c))) {
 					passable[c.pos] = false;
 				}
 			}

@@ -71,6 +71,7 @@ public class MasterThievesArmband extends Artifact {
 	@Override
 	public ArrayList<String> actions(Hero hero) {
 		ArrayList<String> actions = super.actions(hero);
+		if (ArtifactSales.available(this, hero)) actions.add(ArtifactSales.AC_SELL);
 		if (isEquipped(hero)
 				&& charge > 0
 				&& hero.buff(MagicImmune.class) == null
@@ -85,6 +86,11 @@ public class MasterThievesArmband extends Artifact {
 		super.execute(hero, action);
 
 		if (hero.buff(MagicImmune.class) != null) return;
+		if (action.equals(ArtifactSales.AC_SELL)) {
+			usesTargeting = false;
+			ArtifactSales.open(this, hero);
+			return;
+		}
 
 		if (action.equals(AC_STEAL)){
 
@@ -246,6 +252,7 @@ public class MasterThievesArmband extends Artifact {
 	@Override
 	public String desc() {
 		String desc = super.desc();
+		desc += "\n\n" + ArtifactSales.description(this);
 
 		if ( isEquipped (Dungeon.hero) ){
 			if (cursed){

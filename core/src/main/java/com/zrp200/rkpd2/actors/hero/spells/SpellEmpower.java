@@ -6,6 +6,7 @@ import com.zrp200.rkpd2.actors.buffs.CounterBuff;
 import com.zrp200.rkpd2.actors.buffs.Recharging;
 import com.zrp200.rkpd2.actors.hero.Hero;
 import com.zrp200.rkpd2.actors.hero.Talent;
+import com.zrp200.rkpd2.actors.hero.TalentReroll;
 import com.zrp200.rkpd2.items.artifacts.HolyTome;
 import com.zrp200.rkpd2.items.scrolls.ScrollOfRecharging;
 import com.zrp200.rkpd2.messages.Messages;
@@ -19,7 +20,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.TreeMap;
 
 import static com.zrp200.rkpd2.Dungeon.hero;
 
@@ -146,7 +146,7 @@ public abstract class SpellEmpower extends ClericSpell {
         public static class Cooldown extends SpellCooldown {
             @Override
             public int icon() { return BuffIndicator.DIVINE_ADVENT; }
-            public float duration() { return 100 - 10*DivineAdvent.INSTANCE.scalingPoints(); }
+            public float duration() { return Math.max(0, 100 - 10*DivineAdvent.INSTANCE.scalingPoints()); }
         }
     }
 
@@ -188,7 +188,7 @@ public abstract class SpellEmpower extends ClericSpell {
         @Override
         protected List<Object> getDescArgs() {
             List<Object> args = new ArrayList(super.getDescArgs());
-            args.add((hero.isNearDeath() ? 300 : 150)-20*scalingPoints());
+            args.add(Math.max(0, (hero.isNearDeath() ? 150 : 300) - 20*scalingPoints()));
             return args;
         }
 
@@ -196,7 +196,6 @@ public abstract class SpellEmpower extends ClericSpell {
         protected void applyBuff(Hero hero) {
             Buff.affect(hero, Buff.class);
             Cooldown cd = Cooldown.affectHero(Cooldown.class);
-            if (hero.isNearDeath()) cd.spend(-150);
             cd.spend(-1); // offset the instant cast
         }
 
@@ -228,7 +227,7 @@ public abstract class SpellEmpower extends ClericSpell {
                 return target.buff(Buff.class) != null ? BuffIndicator.NONE : BuffIndicator.LIMIT_BREAK;
             }
             public float duration() {
-                return 300 - 20*LimitBreak.INSTANCE.scalingPoints();
+                return Math.max(0, (hero.isNearDeath() ? 150 : 300) - 20*LimitBreak.INSTANCE.scalingPoints());
             }
         }
     }
@@ -264,17 +263,12 @@ public abstract class SpellEmpower extends ClericSpell {
         }
 
         public static aspect_holder givenAspect(){
-            TreeMap<Talent.Aspect, Integer> existingAspects = new TreeMap<>();
-
-            for (int i = 0; i < hero.talents.size(); i++){
-                for (Map.Entry<Talent, Integer> talentData : hero.talents.get(i).entrySet()){
-                    existingAspects.put(talentData.getKey().aspect,
-                            !existingAspects.containsKey(talentData.getKey().aspect) ?
-                                    1 : existingAspects.get(talentData.getKey().aspect) + 1);
-                }
-            }
-
-            return new aspect_holder(existingAspects.lastEntry().getKey(), existingAspects.lastEntry().getValue());
+            ArrayList<Talent> talents = new ArrayList<>();
+            for (Map<Talent, Integer> tier : hero.talents) talents.addAll(tier.keySet());
+            Talent.Aspect aspect = TalentReroll.mostCommonAspect(talents);
+            int count = 0;
+            for (Talent talent : talents) if (talent.aspect == aspect) count++;
+            return new aspect_holder(aspect, count);
         }
 
         public static float charges(){

@@ -2,7 +2,7 @@ plugins {
     id 'org.beryx.runtime' version '2.0.1'
 }
 
-[compileJava, compileTestJava]*.options*.encoding = 'UTF-8'
+compileJava.options.encoding = 'UTF-8'
 java.sourceCompatibility = java.targetCompatibility = appJavaCompatibility
 
 ext.appMainClass = "com.zrp200.rkpd2.desktop.DesktopLauncher"

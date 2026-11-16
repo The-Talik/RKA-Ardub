@@ -5,8 +5,8 @@ import com.zrp200.rkpd2.Dungeon;
 import com.zrp200.rkpd2.actors.Actor;
 import com.zrp200.rkpd2.actors.buffs.Warp;
 import com.zrp200.rkpd2.actors.hero.Hero;
-import com.zrp200.rkpd2.actors.hero.HeroClass;
 import com.zrp200.rkpd2.actors.hero.Talent;
+import com.zrp200.rkpd2.actors.hero.TalentReroll;
 import com.zrp200.rkpd2.actors.hero.abilities.Ratmogrify;
 import com.zrp200.rkpd2.actors.hero.abilities.rat_king.LegacyWrath;
 import com.zrp200.rkpd2.actors.hero.abilities.rat_king.MusRexIra;
@@ -73,19 +73,16 @@ public class Kromer extends Item {
 
                 @Override
                 protected void onSelect(int index) {
+                    if (index < 0 || index > 1) return;
                     if (Dungeon.hero.talents.get(index).size() > 7) {
                         GLog.n(Messages.get(Kromer.class, "too_many"));
                         return;
                     }
-                    HeroClass cls;
-                    Talent randomTalent = null;
-                    while (randomTalent == null) {
-                        do {
-                            cls = Random.element(HeroClass.values());
-                        } while (cls == Dungeon.hero.heroClass || (index == 2 && cls == HeroClass.RAT_KING));
-                        randomTalent = Random.element(Talent.talentList(cls, index + 1));
+                    Talent randomTalent = TalentReroll.rollAddedTalent(hero, index);
+                    if (!TalentReroll.add(hero, index, randomTalent)) {
+                        GLog.n(Messages.get(Kromer.class, "no_replacements"));
+                        return;
                     }
-                    Dungeon.hero.talents.get(index).put(randomTalent, 0);
                     Sample.INSTANCE.play( Assets.Sounds.LEVELUP );
                     Dungeon.hero.sprite.emitter().burst(Speck.factory(Speck.STAR), 40);
                     Enchanting.show(Dungeon.hero, Kromer.this);

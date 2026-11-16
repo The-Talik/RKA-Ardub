@@ -223,9 +223,10 @@ public class TalentsPane extends ScrollPane {
 			super.layout();
 
 			int regStars = Talent.getMaxPoints(tier);
+			int starsPerRow = Math.max(1, (int)((width - title.width() - 2) / 6));
 
 			float titleWidth = title.width();
-			titleWidth += 2 + Math.min(stars.size(), regStars)*6;
+			titleWidth += 2 + Math.min(Math.min(stars.size(), regStars), starsPerRow)*6;
 			title.setPos(x + (width - titleWidth)/2f, y);
 
 			float left = title.right() + 2;
@@ -233,25 +234,30 @@ public class TalentsPane extends ScrollPane {
 			float starTop = title.top();
 			if (regStars < stars.size()) starTop -= 2;
 
-			for (Image star : stars){
+			float headerBottom = title.bottom();
+			int starsPlaced = 0;
+			for (int i = 0; i < stars.size(); i++){
+				if (i > 0 && (starsPlaced == starsPerRow || i == regStars)) {
+					starTop += 6;
+					left = title.right() + 2;
+					starsPlaced = 0;
+				}
+				Image star = stars.get(i);
 				star.x = left;
 				star.y = starTop;
 				PixelScene.align(star);
+				headerBottom = Math.max(headerBottom, star.y + star.height);
 				left += 6;
-				regStars--;
-				if (regStars == 0){
-					starTop += 6;
-					left = title.right() + 2;
-				}
+				starsPlaced++;
 			}
-			// Use as few rows as possible, but at least use them well. every 6 adds another row.
-			final int MAX_TALENTS_PER_ROW = 6;
-			int rows = 1+(buttons.size()-1)/MAX_TALENTS_PER_ROW;
+			// Keep icons at their normal size and fit as many columns as the viewport allows.
+			int maxTalentsPerRow = Math.max(1, (int)(width / TalentButton.WIDTH));
+			int rows = 1+(buttons.size()-1)/maxTalentsPerRow;
 			int buttonsPerRow = buttons.size() / rows;
 			int extra = buttons.size() % rows;  // amount of rows that need an extra button to fit properly
 			if (extra > 0) buttonsPerRow++;
 			float gap = (width - buttonsPerRow*TalentButton.WIDTH)/(buttonsPerRow+1);
-			float bottom = title.bottom();
+			float bottom = headerBottom;
 			int placed = 0;
 			left = x + gap;
 			for (TalentButton btn : buttons){

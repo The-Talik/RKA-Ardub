@@ -23,8 +23,7 @@ package com.zrp200.rkpd2.items.scrolls.exotic;
 
 import com.zrp200.rkpd2.Assets;
 import com.zrp200.rkpd2.Dungeon;
-import com.zrp200.rkpd2.actors.hero.HeroClass;
-import com.zrp200.rkpd2.actors.hero.HeroSubClass;
+import com.zrp200.rkpd2.actors.hero.TalentReroll;
 import com.zrp200.rkpd2.actors.hero.Talent;
 import com.zrp200.rkpd2.actors.hero.spells.MutareArtem;
 import com.zrp200.rkpd2.effects.Speck;
@@ -43,11 +42,9 @@ import com.zrp200.rkpd2.ui.Window;
 import com.zrp200.rkpd2.windows.IconTitle;
 import com.zrp200.rkpd2.windows.WndOptions;
 import com.watabou.noosa.audio.Sample;
-import com.watabou.utils.Random;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
-import java.util.Set;
 
 import static com.zrp200.rkpd2.actors.hero.Talent.*;
 
@@ -160,11 +157,18 @@ public class ScrollOfMetamorphosis extends ExoticScroll {
 										talent == HEROIC_ENDURANCE || talent == HEROIC_STAMINA || talent == HEROIC_WIZARDRY))){
 							continue;
 						}
-						if (i == 2) continue;
+						// Mutare can also change the aspect of subclass slots.
+						if (i == 2 && !mutareArtem) continue;
 						lolTalents.put(talent, Dungeon.hero.pointsInTalent(talent));
 					}
 				}
 			}
+
+            for (int i = 0; i < talents.size(); i++) {
+                final LinkedHashMap<Talent, Integer> actual = Dungeon.hero.talents.get(i);
+                talents.get(i).keySet().retainAll(actual.keySet());
+                for (Talent talent : talents.get(i).keySet()) talents.get(i).put(talent, actual.get(talent));
+            }
 
 			pane = new TalentsPane(TalentButton.Mode.METAMORPH_CHOOSE, talents);
 			add(pane);
@@ -237,49 +241,7 @@ public class ScrollOfMetamorphosis extends ExoticScroll {
 			this.replacing = replacing;
 			this.tier = tier;
 
-			LinkedHashMap<Talent, Integer> options = new LinkedHashMap<>();
-			Set<Talent> curTalentsAtTier = Dungeon.hero.talents.get(tier-1).keySet();
-			for (HeroClass cls : HeroClass.values()){
-
-				ArrayList<LinkedHashMap<Talent, Integer>> clsTalents = new ArrayList<>();
-				initClassTalents(cls, clsTalents);
-
-				Set<Talent> clsTalentsAtTier = clsTalents.get(tier-1).keySet();
-				boolean replacingIsInSet = false;
-				for (Talent talent : clsTalentsAtTier.toArray(new Talent[0])){
-					if (talent == replacing){
-						replacingIsInSet = true;
-						break;
-					} else {
-						if (curTalentsAtTier.contains(talent)){
-							clsTalentsAtTier.remove(talent);
-						}
-						if (talent == STRONGMAN && curUser.subClass == HeroSubClass.MONK) {
-							// avoid redundancy
-							clsTalentsAtTier.remove(talent);
-						}
-
-					}
-				}
-				if (!replacingIsInSet && !clsTalentsAtTier.isEmpty()) {
-					options.put(Random.element(clsTalentsAtTier), Dungeon.hero.pointsInTalent(replacing));
-				}
-			}
-			//fail-safe if hero has all bonus talents
-			int amountOfBonuses = 0;
-			for (Talent t : bonusTalents.get(tier)){
-				if (Dungeon.hero.canHaveTalent(t)) amountOfBonuses++;
-			}
-
-			if (amountOfBonuses < bonusTalents.get(tier).length){
-				Talent bonusMetaTalent = null;
-				do {
-					Talent bonusCandidate = Random.element(bonusTalents.get(tier));
-					if (replacing != bonusCandidate && !Dungeon.hero.hasTalent(bonusCandidate))
-						bonusMetaTalent = bonusCandidate;
-				} while (bonusMetaTalent == null);
-                options.put(bonusMetaTalent, Dungeon.hero.pointsInTalent(replacing));
-			}
+            LinkedHashMap<Talent, Integer> options = TalentReroll.metamorphOptions(Dungeon.hero, replacing, tier - 1);
 
 			replaceOptions = options;
 			setup(replacing, tier, options);
@@ -297,7 +259,7 @@ public class ScrollOfMetamorphosis extends ExoticScroll {
 
 			top = title.bottom() + 2;
 
-			RenderedTextBlock text = PixelScene.renderTextBlock(Messages.get(ScrollOfMetamorphosis.class, "replace_desc"), 6);
+			RenderedTextBlock text = PixelScene.renderTextBlock(Messages.get(ScrollOfMetamorphosis.class, replaceOptions.isEmpty() ? "no_replacements" : "replace_desc"), 6);
 			text.maxWidth(120);
 			text.setPos(0, top);
 			add(text);

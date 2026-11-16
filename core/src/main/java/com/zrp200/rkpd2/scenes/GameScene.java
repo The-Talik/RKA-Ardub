@@ -250,6 +250,9 @@ public class GameScene extends PixelScene {
 			return;
 		}
 
+		// Recalculate older Cenobite saves using the current health rule, without healing.
+		if (Dungeon.hero.lvlCenobite > 1) Dungeon.hero.updateHT(false);
+
 		// debug logic
 		ScrollOfDebug debug = Dungeon.hero.belongings.getItem(ScrollOfDebug.class);
 		// by default only added in "indev" builds.
@@ -259,12 +262,7 @@ public class GameScene extends PixelScene {
 				debug = new ScrollOfDebug();
 				if(!debug.collect()) Dungeon.hero.belongings.backpack.items.add(debug);
 			}
-			if(!Dungeon.quickslot.contains(debug)) {
-				for(int slot = 0; slot < Dungeon.quickslot.SIZE; slot++) if(Dungeon.quickslot.getItem(slot) == null) {
-					Dungeon.quickslot.setSlot(slot, debug);
-					break;
-				}
-			}
+			// Quickslot assignment is controlled by the player, including for the debug scroll.
 		} else if(debug != null) {
 			// attempt to remove scroll of debug automatically.
 			debug.detachAll(Dungeon.hero.belongings.backpack);
@@ -1072,8 +1070,11 @@ private static float waterOfs = 0;
 		}
 
 		if (scene.tagAction) {
-			scene.action.setRect( tagLeft, pos - Tag.SIZE, tagWidth, Tag.SIZE );
-			scene.action.flip(tagsOnLeft);
+			float topLimit = insets.top;
+			if (!tagsOnLeft) topLimit = Math.max(topLimit, scene.menu.bottomWithDangerIndicator());
+			else if (SPDSettings.interfaceSize() == 0) topLimit = Math.max(topLimit, scene.status.bottom());
+			float availableHeight = pos - topLimit - (scene.tagResume ? Tag.SIZE : 0) - 2;
+			scene.action.layoutStack(tagLeft, pos, tagWidth, tagsOnLeft, availableHeight);
 			pos = scene.action.top();
 		}
 

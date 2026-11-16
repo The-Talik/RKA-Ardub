@@ -15,7 +15,7 @@ buildscript {
 allprojects {
 
     ext {
-        appName = 'Rat King Adventures'
+        appName = "Ardub's RKA"
         appPackageName = 'com.zrp200.rkpd2abyssal'
 
         appVersionCode = 858

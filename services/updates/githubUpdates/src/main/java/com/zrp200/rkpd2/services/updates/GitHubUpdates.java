@@ -59,7 +59,7 @@ public class GitHubUpdates implements UpdateService {
 		}
 
 		Net.HttpRequest httpGet = new Net.HttpRequest(Net.HttpMethods.GET);
-		httpGet.setUrl("https://api.github.com/repos/TrashboxBobylev/Rat-King-Adventure/releases");
+		httpGet.setUrl("https://api.github.com/repos/The-Talik/RKA-Ardub/releases");
 		httpGet.setHeader("Accept", "application/vnd.github.v3+json");
 
 		Gdx.net.sendHttpRequest(httpGet, new Net.HttpResponseListener() {
@@ -81,11 +81,11 @@ public class GitHubUpdates implements UpdateService {
 								continue;
 
 							// or that are betas when we haven't opted in
-							} else if (!includeBetas && !b.getBoolean("prerelease")){
+							} else if (!includeBetas && b.getBoolean("prerelease")){
 								continue;
 
 							// or that aren't compatible
-							} else if (DeviceCompat.isDesktop()){
+							} else if (DeviceCompat.isAndroid()){
 								Matcher minAndroid = minAndroidPattern.matcher(b.getString("body"));
 								if (minAndroid.find() && DeviceCompat.getPlatformVersion() < Integer.parseInt(minAndroid.group(1))){
 									continue;
@@ -112,8 +112,7 @@ public class GitHubUpdates implements UpdateService {
 						update.versionName = latestRelease.getString("name");
 						update.versionCode = latestVersionCode;
 						Matcher m = descPattern.matcher(latestRelease.getString("body"));
-						m.find();
-						update.desc = m.group(1);
+						update.desc = m.find() ? m.group(1) : latestRelease.getString("body");
 						update.URL = latestRelease.getString("html_url");
 
 						callback.onUpdateAvailable(update);

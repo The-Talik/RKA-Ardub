@@ -46,7 +46,7 @@ public class ScrollHolder extends Bag {
 	}
 
 	public int capacity(){
-		return 19;
+		return super.capacity() - 1; // reserve the bag's own inventory slot
 	}
 	
 	@Override

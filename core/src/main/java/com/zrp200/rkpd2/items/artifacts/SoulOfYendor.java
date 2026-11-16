@@ -140,6 +140,7 @@ public class SoulOfYendor extends Artifact implements AlchemyScene.ToolkitLike {
     @Override
     public ArrayList<String> actions(Hero hero ) {
         ArrayList<String> actions = super.actions( hero );
+        if (ArtifactSales.available(this, hero)) actions.add(ArtifactSales.AC_SELL);
         if (isEquipped( hero ) && !cursed && (charge > 0)) {
             actions.add(AC_USE);
             actions.add(AC_USEAGAIN);
@@ -150,6 +151,12 @@ public class SoulOfYendor extends Artifact implements AlchemyScene.ToolkitLike {
     @Override
     public void execute(Hero hero, String action) {
         super.execute(hero, action);
+
+        if (action.equals(ArtifactSales.AC_SELL)) {
+            usesTargeting = false;
+            ArtifactSales.open(this, hero);
+            return;
+        }
 
         if (action.equals(AC_USE)){
             GameScene.show(
@@ -938,6 +945,7 @@ public class SoulOfYendor extends Artifact implements AlchemyScene.ToolkitLike {
     @Override
     public String desc() {
         String desc = super.desc();
+        desc += "\n\n" + ArtifactSales.description(this);
 
         if ( isEquipped (Dungeon.hero) ){
             if (cursed){

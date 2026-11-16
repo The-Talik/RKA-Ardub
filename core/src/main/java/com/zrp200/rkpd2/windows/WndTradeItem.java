@@ -51,22 +51,29 @@ public class WndTradeItem extends WndInfoItem {
 	public static final float MULT=1.5f;
 
 	private boolean selling = false;
+	private Runnable sellAgain;
 
 	//selling
 	public WndTradeItem( final Item item, WndBag owner ) {
+		this(item, owner, 100, null);
+	}
+
+	// Artifact sales use the same confirmation and transaction flow, without a shop buyback.
+	public WndTradeItem(final Item item, WndBag owner, final int percentage, Runnable sellAgain) {
 
 		super(item);
 
 		selling = true;
 
 		this.owner = owner;
+		this.sellAgain = sellAgain;
 
 		float pos = height;
 
 		//find the shopkeeper in the current level
 		Shopkeeper shop = null;
 		for (Char ch : Actor.chars()){
-			if (ch instanceof Shopkeeper){
+			if (sellAgain == null && ch instanceof Shopkeeper){
 				shop = (Shopkeeper) ch;
 				break;
 			}
@@ -75,10 +82,10 @@ public class WndTradeItem extends WndInfoItem {
 
 		if (item.quantity() == 1) {
 
-			RedButton btnSell = new RedButton( Messages.get(this, "sell", (int)(item.value()*MULT)) ) {
+			RedButton btnSell = new RedButton( Messages.get(this, "sell", salePrice(item, percentage)) ) {
 				@Override
 				protected void onClick() {
-					sell( item, finalShop);
+					sell( item, finalShop, percentage);
 					hide();
 				}
 			};
@@ -90,11 +97,12 @@ public class WndTradeItem extends WndInfoItem {
 
 		} else {
 
-			int priceAll= (int)Math.ceil(item.value()*MULT);
-			RedButton btnSell1 = new RedButton( Messages.get(this, "sell_1", priceAll / item.quantity()) ) {
+			int priceAll = salePrice(item, percentage);
+			Item single = item.duplicate().quantity(1);
+			RedButton btnSell1 = new RedButton( Messages.get(this, "sell_1", salePrice(single, percentage)) ) {
 				@Override
 				protected void onClick() {
-					sellOne( item, finalShop );
+					sellOne( item, finalShop, percentage );
 					hide();
 				}
 			};
@@ -103,7 +111,7 @@ public class WndTradeItem extends WndInfoItem {
 			RedButton btnSellAll = new RedButton( Messages.get(this, "sell_all", priceAll ) ) {
 				@Override
 				protected void onClick() {
-					sell( item, finalShop );
+					sell( item, finalShop, percentage );
 					hide();
 				}
 			};
@@ -216,7 +224,15 @@ public class WndTradeItem extends WndInfoItem {
 		if (owner != null) {
 			owner.hide();
 		}
-		if (selling) Shopkeeper.sell();
+		if (selling) {
+			if (sellAgain != null) sellAgain.run();
+			else Shopkeeper.sell();
+		}
+	}
+
+	public static int salePrice(Item item, int percentage) {
+		int shopPrice = (int)(item.value() * MULT);
+		return (int)((long)shopPrice * Math.max(0, Math.min(100, percentage)) / 100);
 	}
 
 	public static void sell( Item item ) {
@@ -224,8 +240,13 @@ public class WndTradeItem extends WndInfoItem {
 	}
 
 	public static void sell( Item item, Shopkeeper shop ) {
+		sell(item, shop, 100);
+	}
+
+	public static void sell(Item item, Shopkeeper shop, int percentage) {
 		
 		Hero hero = Dungeon.hero;
+		if (item == null || !hero.belongings.contains(item) || !Shopkeeper.canSell(item)) return;
 		
 		if (item.isEquipped( hero ) && !((EquipableItem)item).doUnequip( hero, false )) {
 			return;
@@ -235,7 +256,7 @@ public class WndTradeItem extends WndInfoItem {
 		//selling items in the sell interface doesn't spend time
 		hero.spend(-hero.cooldown());
 
-		new Gold( (int)(item.value()*MULT) ).doPickUp( hero );
+		new Gold(salePrice(item, percentage)).doPickUp(hero);
 
 		if (shop != null){
 			shop.buybackItems.add(item);
@@ -250,9 +271,14 @@ public class WndTradeItem extends WndInfoItem {
 	}
 
 	public static void sellOne( Item item, Shopkeeper shop ) {
+		sellOne(item, shop, 100);
+	}
+
+	public static void sellOne(Item item, Shopkeeper shop, int percentage) {
+		if (item == null || !Dungeon.hero.belongings.contains(item) || !Shopkeeper.canSell(item)) return;
 		
 		if (item.quantity() <= 1) {
-			sell( item, shop );
+			sell( item, shop, percentage );
 		} else {
 			
 			Hero hero = Dungeon.hero;
@@ -262,7 +288,7 @@ public class WndTradeItem extends WndInfoItem {
 			//selling items in the sell interface doesn't spend time
 			hero.spend(-hero.cooldown());
 
-			new Gold( (int)(item.value()*MULT) ).doPickUp( hero );
+			new Gold(salePrice(item, percentage)).doPickUp(hero);
 
 			if (shop != null){
 				shop.buybackItems.add(item);

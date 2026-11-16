@@ -2083,6 +2083,7 @@ public enum Talent {
 	}
 
 	private static final String TALENT_TIER = "talents_tier_";
+    private static final String TALENT_ORDER = "talent_order";
 
 	public static void storeTalentsInBundle( Bundle bundle, Hero hero ){
 		for (int i = 0; i < MAX_TALENT_TIERS; i++){
@@ -2091,10 +2092,11 @@ public enum Talent {
 
 			for (Talent talent : tier.keySet()){
 				tierBundle.put(talent.name(), tier.get(talent));
-				if (tierBundle.contains(talent.name())){
-					tier.put(talent, Math.min(tierBundle.getInt(talent.name()), talent.maxPoints()));
-				}
 			}
+            String[] order = new String[tier.size()];
+            int slot = 0;
+            for (Talent talent : tier.keySet()) order[slot++] = talent.name();
+            tierBundle.put(TALENT_ORDER, order);
 			bundle.put(TALENT_TIER+(i+1), tierBundle);
 		}
 
@@ -2181,6 +2183,20 @@ public enum Talent {
 			LinkedHashMap<Talent, Integer> tier = hero.talents.get(i);
 			Bundle tierBundle = bundle.contains(TALENT_TIER+(i+1)) ? bundle.getBundle(TALENT_TIER+(i+1)) : null;
 
+            if (tierBundle != null && tierBundle.contains(TALENT_ORDER)) {
+                // Restore the exact slots, including zero-point and cross-tier rolls.
+                // The legacy global replacement map cannot represent those faithfully.
+                tier.clear();
+                for (String name : tierBundle.getStringArray(TALENT_ORDER)) {
+                    try {
+                        Talent talent = Talent.valueOf(name);
+                        tier.put(talent, Math.max(0, Math.min(tierBundle.getInt(name), talent.maxPoints())));
+                    } catch (IllegalArgumentException e) {
+                        ShatteredPixelDungeon.reportException(e);
+                    }
+                }
+                continue;
+            }
 			if (tierBundle != null){
 				// handle my swapping of the two talents
 				for (String tName : tierBundle.getKeys()){

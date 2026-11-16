@@ -72,6 +72,10 @@ public class MenuPane extends Component {
 
 	public static final int WIDTH = 31;
 
+	public float bottomWithDangerIndicator() {
+		return Math.max(y + bg.height, danger.bottom());
+	}
+
 	@Override
 	protected void createChildren() {
 		super.createChildren();

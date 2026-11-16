@@ -22,6 +22,7 @@
 package com.zrp200.rkpd2.items;
 
 import com.zrp200.rkpd2.Assets;
+import com.zrp200.rkpd2.Dungeon;
 import com.zrp200.rkpd2.actors.hero.Hero;
 import com.zrp200.rkpd2.effects.CellEmitter;
 import com.zrp200.rkpd2.effects.Speck;
@@ -40,6 +41,7 @@ public class Ankh extends Item {
 
 	{
 		image = ItemSpriteSheet.ANKH;
+		stackable = true;
 
 		//You tell the ankh no, don't revive me, and then it comes back to revive you again in another run.
 		//I'm not sure if that's enthusiasm or passive-aggression.
@@ -74,10 +76,7 @@ public class Ankh extends Item {
 
 		if (action.equals( AC_BLESS )) {
 
-			Waterskin waterskin = hero.belongings.getItem(Waterskin.class);
-			if (waterskin != null){
-				blessed = true;
-				waterskin.empty();
+			if (blessOne(hero)) {
 				GLog.p( Messages.get(this, "bless") );
 				hero.spend( 1f );
 				hero.busy();
@@ -102,8 +101,26 @@ public class Ankh extends Item {
 		return blessed;
 	}
 
+	@Override
+	public boolean isSimilar(Item item) {
+		return super.isSimilar(item) && blessed == ((Ankh)item).blessed;
+	}
+
 	public void bless(){
 		blessed = true;
+	}
+
+	public boolean blessOne(Hero hero) {
+		Waterskin waterskin = hero.belongings.getItem(Waterskin.class);
+		if (blessed || !hero.belongings.contains(this) || waterskin == null || !waterskin.isFull()) return false;
+		Ankh ankh = (Ankh)detach(hero.belongings.backpack);
+		ankh.bless();
+		if (!ankh.collect(hero.belongings.backpack)) {
+			Dungeon.level.drop(ankh, hero.pos).sprite.drop();
+		}
+		waterskin.empty();
+		updateQuickslot();
+		return true;
 	}
 
 	private static final Glowing WHITE = new Glowing( 0xFFFFCC );

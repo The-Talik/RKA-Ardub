@@ -451,6 +451,10 @@ public abstract class Level implements Bundlable {
 		for (Bundlable p : collection) {
 			Trap trap = (Trap)p;
 			traps.put( trap.pos, trap );
+			// Older Trappet traps were visible but saved as walkable secret traps.
+			if (trap.visible && trap.active && map[trap.pos] == Terrain.SECRET_TRAP) {
+				map[trap.pos] = Terrain.TRAP;
+			}
 		}
 
 		collection = bundle.getCollection( CUSTOM_TILES );

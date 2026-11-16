@@ -46,8 +46,11 @@ import com.zrp200.rkpd2.utils.GLog;
 import com.zrp200.rkpd2.utils.SafeCast;
 import com.zrp200.rkpd2.windows.WndClericSpells;
 import com.watabou.utils.Bundle;
+import com.watabou.noosa.Visual;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
 public class HolyTome extends Artifact {
 
@@ -302,43 +305,62 @@ public class HolyTome extends Artifact {
         return charge == chargeCap;
     }
 
-	private ClericSpell quickSpell = null;
+	public static final int MAX_QUICK_SPELLS = 5;
+	// Publish an immutable snapshot: the UI and recharge actor read this concurrently.
+	private volatile List<QuickSpellAction> quickSpells = Collections.emptyList();
+
+	public ArrayList<ClericSpell> getQuickSpells() {
+		ArrayList<ClericSpell> spells = new ArrayList<>();
+		for (QuickSpellAction action : quickSpells) spells.add(action.spell);
+		return spells;
+	}
 
 	public void setQuickSpell(ClericSpell spell){
-		if (quickSpell == spell){
-			quickSpell = null; //re-assigning the same spell clears the quick spell
-			if (passiveBuff != null){
-				ActionIndicator.clearAction((ActionIndicator.Action) passiveBuff);
-			}
-		} else {
-			quickSpell = spell;
-			if (passiveBuff != null){
-				ActionIndicator.setAction((ActionIndicator.Action) passiveBuff);
-			}
+		ArrayList<QuickSpellAction> updated = new ArrayList<>(quickSpells);
+		if (spell == null) {
+			updated.clear();
+		} else if (!updated.removeIf(action -> action.spell.getClass() == spell.getClass())) {
+			updated.add(0, new QuickSpellAction(spell));
+			if (updated.size() > MAX_QUICK_SPELLS) updated.remove(updated.size()-1);
 		}
+		quickSpells = Collections.unmodifiableList(updated);
+		if (passiveBuff != null) {
+			if (quickSpells.isEmpty()) ActionIndicator.clearAction((ActionIndicator.Action) passiveBuff);
+			else ActionIndicator.setAction((ActionIndicator.Action) passiveBuff);
+		}
+		ActionIndicator.refresh();
 	}
 
 	private static final String QUICK_CLS = "quick_cls";
+	private static final String QUICK_CLASSES = "quick_classes";
 
 	@Override
 	public void storeInBundle(Bundle bundle) {
 		super.storeInBundle(bundle);
-		if (quickSpell != null) {
-			bundle.put(QUICK_CLS, quickSpell.getClass());
-		}
+		List<QuickSpellAction> snapshot = quickSpells;
+		Class[] classes = new Class[snapshot.size()];
+		for (int i = 0; i < classes.length; i++) classes[i] = snapshot.get(i).spell.getClass();
+		bundle.put(QUICK_CLASSES, classes);
+		if (classes.length > 0) bundle.put(QUICK_CLS, classes[0]);
 	}
 
 	@Override
 	public void restoreFromBundle(Bundle bundle) {
 		super.restoreFromBundle(bundle);
-		if (bundle.contains(QUICK_CLS)){
-			Class quickCls = bundle.getClass(QUICK_CLS);
+		Class[] classes = bundle.contains(QUICK_CLASSES) ? bundle.getClassArray(QUICK_CLASSES)
+				: bundle.contains(QUICK_CLS) ? new Class[]{bundle.getClass(QUICK_CLS)} : new Class[0];
+		ArrayList<QuickSpellAction> restored = new ArrayList<>();
+		if (classes != null) for (Class quickCls : classes) {
+			if (restored.size() == MAX_QUICK_SPELLS) break;
+			if (restored.stream().anyMatch(action -> action.spell.getClass() == quickCls)) continue;
 			for (ClericSpell spell : ClericSpell.getAllSpells()){
 				if (spell.getClass() == quickCls){
-					quickSpell = spell;
+					restored.add(new QuickSpellAction(spell));
+					break;
 				}
 			}
 		}
+		quickSpells = Collections.unmodifiableList(restored);
 	}
 
 	public class TomeRecharge extends ArtifactBuff implements ActionIndicator.Action {
@@ -346,7 +368,7 @@ public class HolyTome extends Artifact {
 		@Override
 		public boolean attachTo(Char target) {
 			if (super.attachTo(target)) {
-				if (quickSpell != null) ActionIndicator.setAction(this);
+				if (!quickSpells.isEmpty()) ActionIndicator.setAction(this);
 				return true;
 			} else {
 				return false;
@@ -392,7 +414,7 @@ public class HolyTome extends Artifact {
 			updateQuickslot();
 
 			spend( TICK );
-			if (ActionIndicator.action != this) {
+			if (!quickSpells.isEmpty() && ActionIndicator.action != this) {
 				ActionIndicator.setAction(this);
 			}
 
@@ -401,12 +423,12 @@ public class HolyTome extends Artifact {
 
 		@Override
 		public String actionName() {
-			return quickSpell.name();
+			return quickSpells.isEmpty() ? Messages.get(HolyTome.this, "ac_cast") : quickSpells.get(0).actionName();
 		}
 
 		@Override
 		public int actionIcon() {
-			return quickSpell.icon() + HeroIcon.SPELL_ACTION_OFFSET;
+			return quickSpells.isEmpty() ? HeroIcon.NONE : quickSpells.get(0).actionIcon();
 		}
 
 		@Override
@@ -417,24 +439,55 @@ public class HolyTome extends Artifact {
 		@Override
 		public boolean usable() {
 			Hero hero = Dungeon.hero;
-			return !cursed && (hero == null || canCast(hero, quickSpell));
+			// Keep assigned spells visible while out of charge, on cooldown, or silenced.
+			return !quickSpells.isEmpty() && (hero == null || isEquipped(hero)
+					|| (hero.canHaveTalent(Talent.LIGHT_READING) && hero.belongings.contains(HolyTome.this)));
 		}
 
 		@Override
 		public void doAction() {
+			if (!quickSpells.isEmpty()) quickSpells.get(0).doAction();
+		}
+
+		@Override
+		public List<? extends ActionIndicator.Action> indicatorActions() {
+			return quickSpells;
+		}
+	}
+
+	private class QuickSpellAction implements ActionIndicator.Action {
+		private final ClericSpell spell;
+
+		QuickSpellAction(ClericSpell spell) { this.spell = spell; }
+
+		@Override public String actionName() { return spell.name(); }
+		@Override public int actionIcon() { return spell.icon() + HeroIcon.SPELL_ACTION_OFFSET; }
+		@Override public int indicatorColor() { return 0x002157; }
+		@Override public Visual primaryVisual() {
+			HeroIcon icon = new HeroIcon(this);
+			spell.tintIcon(icon);
+			return icon;
+		}
+		@Override public boolean usable() {
+			Hero hero = Dungeon.hero;
+			return hero != null && !cursed && hero.buff(MagicImmune.class) == null && canCast(hero, spell);
+		}
+
+		@Override public void doAction() {
 			if (cursed){
 				GLog.w(Messages.get(HolyTome.this, "cursed"));
 				return;
 			}
 
-			if (!canCast(Dungeon.hero, quickSpell)){
+			if (!usable()){
 				GLog.w(Messages.get(HolyTome.this, "no_spell"));
 				return;
 			}
 
-			if (QuickSlotButton.targetingSlot != -1 &&
+			if (targetingSpell == spell && spell.usesTargeting() && QuickSlotButton.lastTarget != null
+					&& QuickSlotButton.targetingSlot != -1 &&
 					Dungeon.quickslot.getItem(QuickSlotButton.targetingSlot) == HolyTome.this) {
-				targetingSpell = quickSpell;
+				targetingSpell = spell;
 				int cell = QuickSlotButton.autoAim(QuickSlotButton.lastTarget, HolyTome.this);
 
 				if (cell != -1){
@@ -444,10 +497,14 @@ public class HolyTome extends Artifact {
 					GameScene.handleCell( QuickSlotButton.lastTarget.pos );
 				}
 			} else {
-				quickSpell.onCast(HolyTome.this, Dungeon.hero);
+				// A different pinned spell must not complete the previous spell's target selector.
+				GameScene.cancelCellSelector();
+				QuickSlotButton.cancel();
+				targetingSpell = spell;
+				spell.onCast(HolyTome.this, Dungeon.hero);
 
-				if (quickSpell.usesTargeting() && Dungeon.quickslot.contains(HolyTome.this)){
-					targetingSpell = quickSpell;
+				if (spell.usesTargeting() && Dungeon.quickslot.contains(HolyTome.this)){
+					targetingSpell = spell;
 					QuickSlotButton.useTargeting(Dungeon.quickslot.getSlot(HolyTome.this));
 				}
 			}

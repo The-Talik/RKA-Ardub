@@ -422,9 +422,10 @@ public class Hero extends Char {
 		int curHT = HT;
         int level = lvlCenobite > 1 ? lvlCenobite : lvl;
 		
-		HT = 20 + 5*(level-1) + HTBoost;
+		// Cenobite keeps its saved base HP until half of normal level growth catches up.
+		HT = Math.max(20 + 5*(level-1), (20 + 5*(lvl-1))/2) + HTBoost;
 		if (Dungeon.isSpecialSeedEnabled(DungeonSeed.SpecialSeed.BALANCE)){
-			HT = 5 + 3*(level-1) + HTBoost;
+			HT = Math.max(5 + 3*(level-1), (5 + 3*(lvl-1))/2) + HTBoost;
 		}
 		if (Dungeon.isChallenged(Challenges.JUST_KILL_ME)){
 			HT /= 2;
@@ -630,11 +631,12 @@ public class Hero extends Char {
         if ((Dungeon.isSpecialSeedEnabled(DungeonSeed.SpecialSeed.ALL_YOUR_TALENTS) && canHaveTalent(talent))
 				|| Dungeon.isSpecialSeedEnabled(DungeonSeed.SpecialSeed.ALL_TALENTS))
             return talent.maxPoints();
-        for (LinkedHashMap<Talent, Integer> tier : talents){
-			for (Talent f : tier.keySet()){
-				if (f == talent) return tier.get(f);
-			}
-		}
+        // Empty cross-tier copies must not hide an invested copy.
+        int ownedPoints = -1;
+        for (LinkedHashMap<Talent, Integer> tier : talents) {
+            if (tier.containsKey(talent)) ownedPoints = Math.max(ownedPoints, tier.get(talent));
+        }
+        if (ownedPoints >= 0) return ownedPoints;
 		Integer omniPoints = OmniAbility.findTalent(talent);
 		return omniPoints != null ? omniPoints : 0;
 	}
@@ -701,14 +703,24 @@ public class Hero extends Char {
 
 	}
 
-	public void upgradeTalent( Talent talent ){
-		for (LinkedHashMap<Talent, Integer> tier : talents){
-			for (Talent f : tier.keySet()){
-				if (f == talent) tier.put(talent, tier.get(talent)+1);
-			}
-		}
-		Talent.onTalentUpgraded(this, talent);
-	}
+    public void upgradeTalent(Talent talent) {
+        for (int i = 0; i < talents.size(); i++) {
+            if (talents.get(i).containsKey(talent)) {
+                upgradeTalent(talent, i + 1);
+                return;
+            }
+        }
+    }
+
+    public boolean upgradeTalent(Talent talent, int tier) {
+        if (tier < 1 || tier > talents.size() || talentPointsAvailable(tier) <= 0) return false;
+        LinkedHashMap<Talent, Integer> selected = talents.get(tier - 1);
+        Integer points = selected.get(talent);
+        if (points == null || points >= talent.maxPoints()) return false;
+        selected.put(talent, points + 1);
+        Talent.onTalentUpgraded(this, talent);
+        return true;
+    }
 
 	public int talentPointsSpent(int tier){
 		int total = 0;
@@ -2415,6 +2427,16 @@ if (wep != null) {
 	//FIXME this is a fairly crude way to track this, really it would be nice to have a short
 	//history of hero actions
 	public boolean justMoved = false;
+
+	public boolean canPassThroughAlly(Char ch) {
+		if (ch == null || ch == this || ch.alignment != Alignment.ALLY || !ch.isAlive()) return false;
+		if (ch instanceof Mob && !((Mob) ch).heroShouldInteract()) return false;
+		boolean adjacent = Dungeon.level.adjacent(pos, ch.pos);
+		// A distant ally's eventual approach tile is not yet known. Recheck its
+		// actual space and interaction restrictions when it becomes the next step.
+		return (!adjacent || ch.canInteract(this))
+				&& ch.canSwapPosition(this, adjacent ? pos : ch.pos);
+	}
 	
 	private boolean getCloser( final int target ) {
 
@@ -2436,7 +2458,8 @@ if (wep != null) {
 
 			path = null;
 
-			if (Actor.findChar( target ) == null) {
+			Char occupant = Actor.findChar(target);
+			if (occupant == null || canPassThroughAlly(occupant)) {
 				if (Dungeon.level.passable[target] || Dungeon.level.avoid[target]) {
 					step = target;
 				}
@@ -2458,7 +2481,8 @@ if (wep != null) {
 			else {
 				if (!Dungeon.level.passable[path.get(0)]) {
 					newPath = true;
-				} else if (Actor.findChar(path.get(0)) != null) {
+				} else if (Actor.findChar(path.get(0)) != null
+						&& !canPassThroughAlly(Actor.findChar(path.get(0)))) {
 					newPath = true;
 				}
 			}
@@ -2506,6 +2530,22 @@ if (wep != null) {
 					Chasm.heroFall(target);
 				}
 				canSelfTrample = false;
+				return false;
+			}
+
+			Char occupant = Actor.findChar(step);
+			if (occupant != null && canPassThroughAlly(occupant)) {
+				occupant.interact(this);
+				if (pos != step) {
+					path = null;
+					return false;
+				}
+				justMoved = true;
+				search(false);
+				return true;
+			} else if (occupant != null && !(hasTalent(Talent.BIG_RUSH)
+					&& occupant.alignment == Alignment.ENEMY && fieldOfView[step])) {
+				path = null;
 				return false;
 			}
 

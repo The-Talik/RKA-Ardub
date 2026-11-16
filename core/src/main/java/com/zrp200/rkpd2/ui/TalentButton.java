@@ -26,6 +26,7 @@ import com.zrp200.rkpd2.Dungeon;
 import com.zrp200.rkpd2.ShatteredPixelDungeon;
 import com.zrp200.rkpd2.actors.hero.HeroSubClass;
 import com.zrp200.rkpd2.actors.hero.Talent;
+import com.zrp200.rkpd2.actors.hero.TalentReroll;
 import com.zrp200.rkpd2.actors.hero.abilities.cleric.Trinity;
 import com.zrp200.rkpd2.actors.hero.spells.ArsRetractandi;
 import com.zrp200.rkpd2.effects.Speck;
@@ -135,7 +136,7 @@ public class TalentButton extends Button {
 				&& Dungeon.hero != null
 				&& Dungeon.hero.isAlive()
 				&& Dungeon.hero.talentPointsAvailable(tier) > 0
-				&& Dungeon.hero.pointsInTalent(talent) < talent.maxPoints()){
+				&& pointsInTalent < talent.maxPoints()){
 			toAdd = new WndInfoTalent(talent, pointsInTalent, new WndInfoTalent.TalentButtonCallback() {
 
 				@Override
@@ -186,40 +187,8 @@ public class TalentButton extends Button {
 				public void call() {
 					Talent replacing = ScrollOfMetamorphosis.WndMetamorphReplace.INSTANCE.replacing;
 
-					for (LinkedHashMap<Talent, Integer> tier : Dungeon.hero.talents){
-						if (tier.containsKey(replacing)){
-							LinkedHashMap<Talent, Integer> newTier = new LinkedHashMap<>();
-							for (Talent t : tier.keySet()){
-								if (t == replacing){
-									newTier.put(talent, tier.get(replacing));
-
-									if (!Dungeon.hero.metamorphedTalents.containsValue(replacing)){
-										Dungeon.hero.metamorphedTalents.put(replacing, talent);
-
-									//if what we're replacing is already a value, we need to simplify the data structure
-									} else {
-										//a->b->a, we can just remove the entry entirely
-										if (Dungeon.hero.metamorphedTalents.get(talent) == replacing){
-											Dungeon.hero.metamorphedTalents.remove(talent);
-
-										//a->b->c, we need to simplify to a->c
-										} else {
-											for (Talent t2 : Dungeon.hero.metamorphedTalents.keySet()){
-												if (Dungeon.hero.metamorphedTalents.get(t2) == replacing){
-													Dungeon.hero.metamorphedTalents.put(t2, talent);
-												}
-											}
-										}
-									}
-
-								} else {
-									newTier.put(t, tier.get(t));
-								}
-							}
-							Dungeon.hero.talents.set(ScrollOfMetamorphosis.WndMetamorphReplace.INSTANCE.tier-1, newTier);
-							break;
-						}
-					}
+                    if (!TalentReroll.replace(Dungeon.hero,
+                            ScrollOfMetamorphosis.WndMetamorphReplace.INSTANCE.tier - 1, replacing, talent)) return;
 
 					ScrollOfMetamorphosis.onMetamorph(replacing, talent);
 
@@ -264,55 +233,13 @@ public class TalentButton extends Button {
                     if (ArsRetractandi.WndChoose.INSTANCE != null){
                         ArsRetractandi.WndChoose.INSTANCE.hide();
                     }
-                    Talent newTalent;
-                    while (true){
-                        Talent testTalent = Random.element(Talent.values());
-                        if (Dungeon.hero.talents.get(tier-1).containsKey(testTalent))
-                            continue;
-                        if (testTalent.aspect != talent.aspect)
-                            continue;
-                        if (testTalent.maxPoints() == 3 && Random.Int(3) != 0)
-                            continue;
-                        if (testTalent.maxPoints() == 4 && Random.Int(5) != 0)
-                            continue;
-                        newTalent = testTalent;
-                        break;
+                    Talent newTalent = TalentReroll.roll(Dungeon.hero, talent.aspect);
+                    if (newTalent == null) {
+                        com.zrp200.rkpd2.utils.GLog.w(Messages.get(ArsRetractandi.class, "no_replacements"));
+                        return;
                     }
 
-                    for (LinkedHashMap<Talent, Integer> tier : Dungeon.hero.talents){
-                        if (tier.containsKey(talent)){
-                            LinkedHashMap<Talent, Integer> newTier = new LinkedHashMap<>();
-                            for (Talent t : tier.keySet()){
-                                if (t == talent){
-                                    newTier.put(newTalent, tier.get(talent));
-
-                                    if (!Dungeon.hero.metamorphedTalents.containsValue(talent)){
-                                        Dungeon.hero.metamorphedTalents.put(talent, newTalent);
-
-                                        //if what we're replacing is already a value, we need to simplify the data structure
-                                    } else {
-                                        //a->b->a, we can just remove the entry entirely
-                                        if (Dungeon.hero.metamorphedTalents.get(talent) == talent){
-                                            Dungeon.hero.metamorphedTalents.remove(talent);
-
-                                            //a->b->c, we need to simplify to a->c
-                                        } else {
-                                            for (Talent t2 : Dungeon.hero.metamorphedTalents.keySet()){
-                                                if (Dungeon.hero.metamorphedTalents.get(t2) == talent){
-                                                    Dungeon.hero.metamorphedTalents.put(t2, talent);
-                                                }
-                                            }
-                                        }
-                                    }
-
-                                } else {
-                                    newTier.put(t, tier.get(t));
-                                }
-                            }
-                            Dungeon.hero.talents.set(TalentButton.this.tier-1, newTier);
-                            break;
-                        }
-                    }
+                    if (!TalentReroll.replace(Dungeon.hero, TalentButton.this.tier - 1, talent, newTalent)) return;
 
                     ArsRetractandi.onChange(talent, newTalent);
                 }
@@ -363,7 +290,7 @@ public class TalentButton extends Button {
 
 	public void upgradeTalent(){
 		if (Dungeon.hero.talentPointsAvailable(tier) > 0 && parent != null) {
-			Dungeon.hero.upgradeTalent(talent);
+			if (!Dungeon.hero.upgradeTalent(talent, tier)) return;
 			float oldWidth = fill.width();
 			pointsInTalent++;
 			layout();

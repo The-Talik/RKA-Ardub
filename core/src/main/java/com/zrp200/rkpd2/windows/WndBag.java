@@ -104,13 +104,22 @@ public class WndBag extends WndTabbed {
 		slotHeight = PixelScene.landscape() ? SLOT_HEIGHT_L : SLOT_HEIGHT_P;
 
 		nCols = PixelScene.landscape() ? COLS_L : COLS_P;
-		nRows = (int)Math.ceil(25/(float)nCols); //we expect to lay out 25 slots in all cases
+		// Bags occupy tabs, not visible slots; secondary weapons occupy backpack slots.
+        int visibleSlots = bag.capacity() + 5;
+        if (bag == Dungeon.hero.belongings.backpack) {
+            for (Item item : bag.items) if (item instanceof Bag) visibleSlots--;
+            if (Dungeon.hero.belongings.secondWep != null) visibleSlots++;
+            if (Dungeon.hero.belongings.thirdWep != null) visibleSlots++;
+        } else {
+            visibleSlots++; // the bag itself
+        }
+        nRows = (int)Math.ceil(visibleSlots / (float)nCols);
 
 		int windowWidth = slotWidth * nCols + SLOT_MARGIN * (nCols - 1);
 		int windowHeight = TITLE_HEIGHT + slotHeight * nRows + SLOT_MARGIN * (nRows - 1);
 
 		if (PixelScene.landscape()){
-			while (slotHeight >= 24 && (windowHeight + 20 + chrome.marginTop()) > PixelScene.uiCamera.height){
+			while (slotHeight > 18 && (windowHeight + 20 + chrome.marginTop()) > PixelScene.uiCamera.height){
 				slotHeight--;
 				windowHeight -= nRows;
 			}

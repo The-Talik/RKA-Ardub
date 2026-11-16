@@ -98,18 +98,7 @@ public class RingOfWealth extends Ring {
 		triesToDrop.countDown(tries);
 		while ( triesToDrop.count() <= 0 ){
 			if (dropsToEquip.count() <= 0){
-				int equipBonus = 0;
-
-				//A second ring of wealth can be at most +1 when calculating wealth bonus for equips
-				//This is to prevent using an upgraded wealth to farm another upgraded wealth and
-				//using the two to get substantially more upgrade value than intended
-				for (Wealth w : target.buffs(Wealth.class)){
-					if (w.buffedLvl() > equipBonus){
-						equipBonus = w.buffedLvl() + Math.min(equipBonus, 2);
-					} else {
-						equipBonus += Math.min(w.buffedLvl(), 2);
-					}
-				}
+                int equipBonus = equipmentBonus(target);
 
 				Item i;
 				do {
@@ -130,6 +119,20 @@ public class RingOfWealth extends Ring {
 		
 		return drops;
 	}
+
+    static int equipmentBonus(Char target) {
+        int bonus = 0;
+        int physicalBonus = 0;
+        // Preserve the secondary physical ring's +1 cap.
+        for (Wealth wealth : target.buffs(Wealth.class)) {
+            int level = wealth.buffedLvl();
+            physicalBonus += level;
+            bonus = level > bonus ? level + Math.min(bonus, 2) : bonus + Math.min(level, 2);
+        }
+        // Spirit Form is a virtual ring: the normal ring calculation already handles
+        // its precedence, magic immunity, and special-seed bonuses.
+        return physicalBonus == 0 ? getBuffedBonus(target, Wealth.class) : bonus;
+    }
 
 	//used for visuals
 	// 1/2/3 used for low/mid/high tier consumables

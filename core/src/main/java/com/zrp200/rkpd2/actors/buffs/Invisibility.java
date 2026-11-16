@@ -94,20 +94,11 @@ public class Invisibility extends FlavourBuff {
 	}
 
 	public static void dispel(Char ch) {
-		if (!Dungeon.hero.heroClass.is(HeroClass.ROGUE) && Dungeon.hero.hasTalent(Talent.EFFICIENT_SHADOWS)){
+		if (ch == Dungeon.hero && !Dungeon.hero.heroClass.is(HeroClass.ROGUE) && Dungeon.hero.hasTalent(Talent.EFFICIENT_SHADOWS)){
 			if (Dungeon.hero.buff(DispelDelayer.class) == null && Dungeon.hero.invisible > 0){
 				Buff.affect(Dungeon.hero, DispelDelayer.class, 1f);
 			} else {
 				actualDispel(ch);
-				if (Dungeon.hero.pointsInTalent(Talent.EFFICIENT_SHADOWS) > 1){
-					for (Buff b : Dungeon.hero.buffs()) {
-						if (b instanceof Artifact.ArtifactBuff) {
-							if (!((Artifact.ArtifactBuff) b).isCursed()) {
-								((Artifact.ArtifactBuff) b).charge(Dungeon.hero, 4);
-							}
-						}
-					}
-				}
 			}
 		} else if (Dungeon.hero.pointsInTalent(Talent.ADAPT_AND_OVERCOME) == 3){
 			if (Dungeon.hero.buff(DispelDelayer.class) == null && Dungeon.hero.invisible > 0){
@@ -132,6 +123,7 @@ public class Invisibility extends FlavourBuff {
 	}
 
 	public static void actualDispel(Char ch) {
+        boolean wasInvisible = ch.invisible > 0;
 		for ( Buff invis : ch.buffs( Invisibility.class )){
 			invis.detach();
 		}
@@ -159,6 +151,15 @@ public class Invisibility extends FlavourBuff {
 		if (guard != null && guard.hasBlocked){
 			guard.detach();
 		}
+        if (ch == Dungeon.hero && wasInvisible && ch.invisible == 0
+                && !Dungeon.hero.heroClass.is(HeroClass.ROGUE)
+                && Dungeon.hero.pointsInTalent(Talent.EFFICIENT_SHADOWS) > 1) {
+            for (Buff buff : ch.buffs()) {
+                if (buff instanceof Artifact.ArtifactBuff && !((Artifact.ArtifactBuff) buff).isCursed()) {
+                    ((Artifact.ArtifactBuff) buff).charge(Dungeon.hero, 4);
+                }
+            }
+        }
 	}
 
 	public static class DispelDelayer extends FlavourBuff {

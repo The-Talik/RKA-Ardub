@@ -48,7 +48,10 @@ import com.watabou.input.KeyEvent;
 import com.watabou.noosa.Gizmo;
 import com.watabou.noosa.Group;
 import com.watabou.noosa.Image;
+import com.watabou.noosa.Game;
 import com.watabou.noosa.ui.Component;
+import com.watabou.utils.PlatformSupport;
+import com.watabou.utils.RectF;
 
 import java.util.ArrayList;
 import java.util.Locale;
@@ -57,6 +60,7 @@ public class WndHero extends WndTabbed {
 	
 	private static final int WIDTH		= 120;
 	private static final int HEIGHT		= 120;
+	private static final int SCREEN_MARGIN = 6;
 	
 	private StatsTab stats;
 	private TalentsTab talents;
@@ -115,10 +119,6 @@ public class WndHero extends WndTabbed {
 		if (Dungeon.isChallenged(Challenges.NO_TALENTS))
 		tabs.get(1).bg.tint(0, 0.5f);
 
-		talents.setRect(0, 0, WIDTH, HEIGHT);
-		talents.pane.scrollTo(0, talents.pane.content().height() - talents.pane.height());
-		talents.layout();
-
 		select( lastIdx );
 	}
 
@@ -135,6 +135,15 @@ public class WndHero extends WndTabbed {
 	@Override
 	public void offset(int xOffset, int yOffset) {
 		super.offset(xOffset, yOffset);
+		if (tabs.indexOf(selected) == 1) {
+			// Other dialogs can pass along an inventory-pane offset when opening us.
+			RectF insets = Game.platform.getSafeInsets(PlatformSupport.INSET_ALL);
+			int dx = camera.x < insets.left ? (int)Math.ceil((insets.left - camera.x) / camera.zoom)
+					: Math.min(0, (int)Math.floor((Game.width - insets.right - camera.x - camera.screenWidth()) / camera.zoom));
+			int dy = camera.y < insets.top ? (int)Math.ceil((insets.top - camera.y) / camera.zoom)
+					: Math.min(0, (int)Math.floor((Game.height - insets.bottom - camera.y - camera.screenHeight()) / camera.zoom));
+			if (dx != 0 || dy != 0) super.offset(this.xOffset + dx, this.yOffset + dy);
+		}
 		talents.layout();
 		buffs.layout();
 	}
@@ -142,7 +151,34 @@ public class WndHero extends WndTabbed {
 	@Override
 	public void select(Tab tab) {
 		if (Dungeon.isChallenged(Challenges.NO_TALENTS) && tabs.indexOf(tab) == 1) return;
+		boolean changed = tab != selected;
 		super.select(tab);
+		if (changed) layoutSelectedTab();
+	}
+
+	private void layoutSelectedTab() {
+		RectF insets = Game.platform.getSafeInsets(PlatformSupport.INSET_ALL);
+		int tabWidth = WIDTH;
+		int tabHeight = HEIGHT;
+		if (tabs.indexOf(selected) == 1) {
+			// Use the unfolded display instead of the old fixed, phone-sized viewport.
+			tabWidth = Math.max(1, (int)((Game.width - insets.left - insets.right) / camera.zoom)
+					- chrome.marginHor() - 2 * SCREEN_MARGIN);
+			int availableHeight = Math.max(1, (int)((Game.height - insets.top - insets.bottom) / camera.zoom)
+					- chrome.marginTop() - tabHeight() - 2 * SCREEN_MARGIN);
+			talents.setRect(0, 0, tabWidth, 0);
+			tabHeight = Math.min(availableHeight, Math.max(1, (int)Math.ceil(talents.pane.content().height())));
+		}
+
+		offset(0, 0);
+		resize(tabWidth, tabHeight);
+		layoutTabs();
+		talents.setRect(0, 0, tabWidth, tabHeight);
+		buffs.setRect(0, 0, tabWidth, tabHeight);
+		// WndTabbed centers on the physical screen; account for cutouts and system bars.
+		offset(Math.round((insets.left - insets.right) / (2 * camera.zoom)),
+				Math.round((insets.top - insets.bottom) / (2 * camera.zoom)));
+		if (tabs.indexOf(selected) == 1) talents.pane.scrollTo(0, 0);
 	}
 
 	private class StatsTab extends Group {

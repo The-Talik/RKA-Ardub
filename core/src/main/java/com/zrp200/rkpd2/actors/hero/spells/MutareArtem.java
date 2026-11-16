@@ -3,9 +3,9 @@ package com.zrp200.rkpd2.actors.hero.spells;
 import com.zrp200.rkpd2.Assets;
 import com.zrp200.rkpd2.Dungeon;
 import com.zrp200.rkpd2.actors.hero.Hero;
-import com.zrp200.rkpd2.actors.hero.HeroClass;
 import com.zrp200.rkpd2.actors.hero.HeroSubClass;
 import com.zrp200.rkpd2.actors.hero.Talent;
+import com.zrp200.rkpd2.actors.hero.TalentReroll;
 import com.zrp200.rkpd2.effects.Speck;
 import com.zrp200.rkpd2.items.artifacts.HolyTome;
 import com.zrp200.rkpd2.items.scrolls.exotic.ScrollOfMetamorphosis;
@@ -16,9 +16,6 @@ import com.zrp200.rkpd2.utils.DungeonSeed;
 import com.zrp200.rkpd2.utils.GLog;
 import com.watabou.noosa.audio.Sample;
 import com.watabou.utils.Random;
-
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
 
 public class MutareArtem extends ClericSpell {
 
@@ -75,20 +72,13 @@ public class MutareArtem extends ClericSpell {
         if (SpellEmpower.isActive()){
             int index = Random.Int(3);
             if (Dungeon.hero.talents.get(index).size() <= talentAmount(index + 1)*2){
-                HeroClass cls;
-                Talent randomTalent = null;
-                ArrayList<Talent> allTalents = new ArrayList<>();
-                for (LinkedHashMap<Talent, Integer> tier : hero.talents)
-                    allTalents.addAll(tier.keySet());
-                while (randomTalent == null || allTalents.contains(randomTalent)) {
-                    do {
-                        cls = Random.element(HeroClass.values());
-                    } while (cls == Dungeon.hero.heroClass || (index == 2 && cls == HeroClass.RAT_KING));
-                    randomTalent = Random.element(Talent.talentList(cls, index + 1));
+                Talent randomTalent = TalentReroll.rollAddedTalent(hero, index);
+                if (TalentReroll.add(hero, index, randomTalent)) {
+                    Sample.INSTANCE.play( Assets.Sounds.LEVELUP );
+                    hero.sprite.emitter().burst(Speck.factory(Speck.STAR), 40);
+                } else {
+                    GLog.n(Messages.get(MutareArtem.class, "no_replacements"));
                 }
-                Dungeon.hero.talents.get(index).put(randomTalent, 0);
-                Sample.INSTANCE.play( Assets.Sounds.LEVELUP );
-                Dungeon.hero.sprite.emitter().burst(Speck.factory(Speck.STAR), 40);
             } else {
                 GLog.n(Messages.get(MutareArtem.class, "too_many_talents"));
             }

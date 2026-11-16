@@ -123,7 +123,8 @@ public class Trappet extends AbyssalMob implements Callback {
                 if (!points.isEmpty()) {
                     Trap t = ((Trap) Reflection.newInstance(Random.element(traps)));
                     Dungeon.level.setTrap(t, Random.element(points));
-                    Dungeon.level.map[t.pos] = t.visible ? Terrain.TRAP : Terrain.SECRET_TRAP;
+                    // Update pathfinding flags as well as the visible terrain.
+                    Level.set(t.pos, Terrain.TRAP);
                     t.reveal();
                 } else {
                     Trap t = ((Trap) Reflection.newInstance(Random.element(traps)));

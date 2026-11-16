@@ -309,33 +309,46 @@ public abstract class Char extends Actor {
 		return Math.max(4* hero.pointsInTalent(Talent.ALLY_WARP), 2* hero.pointsInTalent(Talent.RK_WARLOCK));
 	}
 
-	//swaps places by default
-	public boolean interact(Char c){
-
+	// Checks a prospective swap without moving either character. 'from' is the
+	// initiating character's position, which may be a future step in a path.
+	public boolean canSwapPosition(Char c, int from) {
 		//don't allow char to swap onto hazard unless they're flying
 		//you can swap onto a hazard though, as you're not the one instigating the swap
 		if (!Dungeon.level.passable[pos] && !c.flying){
-			return true;
+			return false;
 		}
 
 		//can't swap into a space without room
-		if (properties().contains(Property.LARGE) && !Dungeon.level.openSpace[c.pos]
+		if (properties().contains(Property.LARGE) && !Dungeon.level.openSpace[from]
 			|| c.properties().contains(Property.LARGE) && !Dungeon.level.openSpace[pos]){
-			return true;
+			return false;
 		}
+
+		//can't swap or ally warp if either char is immovable
+		if (hasProp(this, Property.IMMOVABLE) || hasProp(c, Property.IMMOVABLE)){
+			return false;
+		}
+
+		return canWarpForSwap(c) || !(paralysed > 0 || c.paralysed > 0 || rooted || c.rooted
+				|| buff(Vertigo.class) != null || c.buff(Vertigo.class) != null);
+	}
+
+	protected boolean canWarpForSwap(Char c) {
+		return c == hero && (hero.pointsInTalent(Talent.RK_PALADIN) == 3
+				|| hero.hasTalent(Talent.ALLY_WARP, Talent.RK_WARLOCK));
+	}
+
+	//swaps places by default
+	public boolean interact(Char c){
+		if (!canSwapPosition(c, c.pos)) return true;
 
 		//we do a little raw position shuffling here so that the characters are never
 		// on the same cell when logic such as occupyCell() is triggered
 		int oldPos = pos;
 		int newPos = c.pos;
 
-		//can't swap or ally warp if either char is immovable
-		if (hasProp(this, Property.IMMOVABLE) || hasProp(c, Property.IMMOVABLE)){
-			return true;
-		}
-
 		//warp instantly with allies in this case
-		if (c == hero && (hero.pointsInTalent(Talent.RK_PALADIN) == 3 || hero.hasTalent(Talent.ALLY_WARP,Talent.RK_WARLOCK))){
+		if (canWarpForSwap(c)){
 			PathFinder.buildDistanceMap(c.pos, BArray.or(Dungeon.level.passable, Dungeon.level.avoid, null));
 			if (PathFinder.distance[pos] == Integer.MAX_VALUE){
 				return true;
@@ -346,12 +359,6 @@ public abstract class Char extends Actor {
 			ScrollOfTeleportation.appear(c, oldPos);
 			Dungeon.observe();
 			GameScene.updateFog();
-			return true;
-		}
-
-		//can't swap places if one char has restricted movement
-		if (paralysed > 0 || c.paralysed > 0 || rooted || c.rooted
-				|| buff(Vertigo.class) != null || c.buff(Vertigo.class) != null){
 			return true;
 		}
 
@@ -1445,7 +1452,7 @@ public abstract class Char extends Actor {
 
 	@Override
 	public void spendConstant(float time) {
-		TimekeepersHourglass.timeFreeze freeze = buff(TimekeepersHourglass.timeFreeze.class);
+		TimekeepersHourglass.TimeFreezing freeze = buff(TimekeepersHourglass.TimeFreezing.class);
 		if (freeze != null) {
 			freeze.processTime(time);
 			return;

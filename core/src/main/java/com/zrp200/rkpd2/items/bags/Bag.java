@@ -37,6 +37,8 @@ import java.util.Iterator;
 
 public class Bag extends Item implements Iterable<Item> {
 
+    public static final int BASE_CAPACITY = 30;
+
 	public static final String AC_OPEN	= "OPEN";
 	
 	{
@@ -52,7 +54,7 @@ public class Bag extends Item implements Iterable<Item> {
 	public ArrayList<Item> items = new ArrayList<>();
 
 	public int capacity(){
-		return 20; // default container size
+		return BASE_CAPACITY;
 	}
 
 	//if an item is being quick-used from the bag, the bag should take on its targeting properties

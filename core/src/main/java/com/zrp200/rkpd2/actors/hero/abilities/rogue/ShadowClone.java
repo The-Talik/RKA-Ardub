@@ -385,6 +385,11 @@ public class ShadowClone extends ArmorAbility {
 		}
 
 		@Override
+		protected boolean canWarpForSwap(Char c) {
+			return hero.hasTalent(Talent.PERFECT_COPY) || super.canWarpForSwap(c);
+		}
+
+		@Override
 		public boolean interact(Char c) {
 
 			if (!hero.hasTalent(Talent.PERFECT_COPY)){
